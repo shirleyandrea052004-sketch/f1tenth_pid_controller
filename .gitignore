@@ -49,3 +49,24 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+
+# --- ROS2 / colcon ---
+build/
+install/
+log/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# --- Entornos virtuales ---
+venv/
+.venv/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*~
+.DS_Store

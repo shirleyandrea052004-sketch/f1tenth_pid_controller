@@ -16,6 +16,9 @@ A continuación, se observa el funcionamiento de los algoritmos:
 **Comparación visual: Ruta cruda (Dijkstra) vs. Ruta suavizada (PCHIP):**  
 ![Comparación cruda vs suavizada](docs/media/comparacion_cruda_vs_suavizada.gif)
 
+**Trayectoria final (mapa + waypoints crudos y suavizados superpuestos):**  
+![Trayectoria final](docs/media/trajectory_overlay.png)
+
 > **Nota:** La visualización final del `Path` superpuesto sobre el vehículo en movimiento dentro del simulador AutoDRIVE se puede apreciar a detalle en los videos enlazados arriba.
 
 ## 📂 Estructura del repositorio
@@ -24,10 +27,14 @@ A continuación, se observa el funcionamiento de los algoritmos:
 .
 ├── docs/
 │   ├── debug_images/            # Capturas de diagnóstico usadas durante el desarrollo
-│   └── media/                   # GIFs y recursos multimedia del README
+│   └── media/                   # GIFs, imagen de trayectoria final y recursos multimedia del README
+├── waypoints/                    # Waypoints generados (CSV) de la ruta cruda y suavizada
+│   ├── raw_path.csv
+│   └── smoothed_path.csv
 ├── scripts/                     # Herramientas de desarrollo (no forman parte del paquete ROS2)
 │   ├── visualize_map.py         # Visualiza el mapa (.pgm/.yaml) con grilla de coordenadas del mundo
-│   └── pick_start_goal.py       # Elige visualmente start/goal haciendo clic sobre el mapa inflado
+│   ├── pick_start_goal.py       # Elige visualmente start/goal haciendo clic sobre el mapa inflado
+│   └── plot_waypoints.py        # Genera la imagen final (mapa + waypoints crudos y suavizados)
 └── src/
     └── f1tenth_global_planner/  # Paquete ROS2 (ament_python)
         ├── f1tenth_global_planner/
@@ -201,15 +208,36 @@ original (`F1tenth_Map.pgm`), sin modificar, se conserva como evidencia cruda de
 | `global_planner_node` | `robot_radius` | `0.20` | Margen de seguridad (m) para inflar obstáculos antes de correr Dijkstra |
 | `global_planner_node` | `start_x/y`, `goal_x/y` | ver `demo_launch.py` | Punto de inicio/meta por defecto |
 | `global_planner_node` | `use_rviz_goals` | `True` | Permite sobrescribir start/goal desde RViz |
+| `global_planner_node` | `waypoints_csv_path` | `~/f1tenth_waypoints/raw_path.csv` | Ruta donde se exporta el CSV de waypoints crudos en cada ejecución |
 | `path_smoother_node` | `points_per_meter` | `10.0` | Densidad de muestreo de la curva final |
 | `path_smoother_node` | `simplify_epsilon` | `0.15` | Tolerancia (m) de Douglas-Peucker |
 | `path_smoother_node` | `safety_radius` | `0.08` | Margen de seguridad (m) usado solo para validar el suavizado |
 | `path_smoother_node` | `max_local_refinements` | `25` | Máximo de iteraciones de refinamiento local antes de usar la ruta cruda como respaldo |
+| `path_smoother_node` | `waypoints_csv_path` | `~/f1tenth_waypoints/smoothed_path.csv` | Ruta donde se exporta el CSV de waypoints suavizados en cada ejecución |
+
+## 🗺️ Waypoints generados
+
+Los waypoints de la ruta global se exportan automáticamente a CSV cada vez que corren los
+nodos (`global_planner_node` y `path_smoother_node`), y se guardan también en este
+repositorio como evidencia:
+
+| Archivo | Contenido |
+|---|---|
+| [`waypoints/raw_path.csv`](waypoints/raw_path.csv) | Ruta cruda de Dijkstra: `index, x, y` |
+| [`waypoints/smoothed_path.csv`](waypoints/smoothed_path.csv) | Ruta suavizada (PCHIP): `index, x, y, yaw_rad` |
+
+Por defecto, al correr los nodos, los CSV se regeneran en `~/f1tenth_waypoints/` (parámetro
+`waypoints_csv_path` de cada nodo). Para actualizar los archivos de este repositorio con una
+nueva ejecución:
+
+```bash
+cp ~/f1tenth_waypoints/raw_path.csv waypoints/
+cp ~/f1tenth_waypoints/smoothed_path.csv waypoints/
+```
 
 ## 🛠️ Herramientas de desarrollo (`scripts/`)
 
-Estos scripts corren de forma independiente (sin ROS2) y se usaron para depurar la elección
-de coordenadas de start/goal directamente sobre el mapa:
+Estos scripts corren de forma independiente (sin ROS2):
 
 - **`visualize_map.py`**: genera una imagen del mapa con grilla de coordenadas del mundo real
   superpuesta.
@@ -222,6 +250,16 @@ de coordenadas de start/goal directamente sobre el mapa:
   validando en tiempo real si el punto es libre.
   ```bash
   python3 scripts/pick_start_goal.py src/f1tenth_global_planner/maps/F1tenth_Map_walled.yaml --radius 0.20
+  ```
+
+- **`plot_waypoints.py`**: genera la imagen final de la trayectoria (mapa + waypoints crudos
+  y suavizados superpuestos, ver arriba en "Demostraciones Visuales").
+  ```bash
+  python3 scripts/plot_waypoints.py \
+      src/f1tenth_global_planner/maps/F1tenth_Map_walled.yaml \
+      waypoints/raw_path.csv \
+      waypoints/smoothed_path.csv \
+      -o docs/media/trajectory_overlay.png
   ```
 
 ## 📌 Notas y limitaciones conocidas

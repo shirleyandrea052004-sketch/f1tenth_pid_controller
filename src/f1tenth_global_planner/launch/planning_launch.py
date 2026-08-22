@@ -50,6 +50,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'points_per_meter': 10.0,
+            'safety_radius': 0.08,
         }]
     )
 

@@ -1,5 +1,7 @@
+import csv
 import heapq
 import math
+import os
 
 import numpy as np
 import rclpy
@@ -21,6 +23,9 @@ class GlobalPlannerNode(Node):
         self.declare_parameter('goal_y', 5.0)
         self.declare_parameter('robot_radius', 0.20)  # metros
         self.declare_parameter('use_rviz_goals', True)
+        self.declare_parameter(
+            'waypoints_csv_path',
+            os.path.expanduser('~/f1tenth_waypoints/raw_path.csv'))
 
         self.robot_radius = self.get_parameter('robot_radius').value
         self.use_rviz_goals = self.get_parameter('use_rviz_goals').value
@@ -263,6 +268,19 @@ class GlobalPlannerNode(Node):
         self.path_pub.publish(path_msg)
         self.get_logger().info(
             f'Ruta publicada en /raw_path con {len(path_msg.poses)} puntos.')
+        self.export_waypoints_csv(path_msg)
+
+    def export_waypoints_csv(self, path_msg: Path):
+        csv_path = self.get_parameter('waypoints_csv_path').value
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['index', 'x', 'y'])
+            for i, pose in enumerate(path_msg.poses):
+                writer.writerow(
+                    [i, pose.pose.position.x, pose.pose.position.y])
+        self.get_logger().info(
+            f'Waypoints crudos exportados a: {csv_path}')
 
 
 def main(args=None):

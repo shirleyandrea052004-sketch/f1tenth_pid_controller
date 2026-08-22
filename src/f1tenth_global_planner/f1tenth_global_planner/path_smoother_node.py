@@ -1,3 +1,6 @@
+import csv
+import os
+
 import numpy as np
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -52,8 +55,11 @@ class PathSmootherNode(Node):
         self.declare_parameter('points_per_meter', 10.0)
         self.declare_parameter('min_waypoints_for_spline', 4)
         self.declare_parameter('simplify_epsilon', 0.15)
-        self.declare_parameter('safety_radius', 0.20)
+        self.declare_parameter('safety_radius', 0.08)
         self.declare_parameter('max_local_refinements', 25)
+        self.declare_parameter(
+            'waypoints_csv_path',
+            os.path.expanduser('~/f1tenth_waypoints/smoothed_path.csv'))
 
         self.points_per_meter = self.get_parameter('points_per_meter').value
         self.min_waypoints = self.get_parameter('min_waypoints_for_spline').value
@@ -228,6 +234,22 @@ class PathSmootherNode(Node):
         self.get_logger().info(
             f'Ruta suavizada publicada en /smoothed_path con '
             f'{len(path_msg.poses)} puntos.')
+        self.export_waypoints_csv(path_msg)
+
+    def export_waypoints_csv(self, path_msg: Path):
+        csv_path = self.get_parameter('waypoints_csv_path').value
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['index', 'x', 'y', 'yaw_rad'])
+            for i, pose in enumerate(path_msg.poses):
+                z = pose.pose.orientation.z
+                w = pose.pose.orientation.w
+                yaw = 2.0 * np.arctan2(z, w)
+                writer.writerow(
+                    [i, pose.pose.position.x, pose.pose.position.y, yaw])
+        self.get_logger().info(
+            f'Waypoints suavizados exportados a: {csv_path}')
 
 
 def main(args=None):

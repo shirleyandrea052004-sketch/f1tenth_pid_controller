@@ -102,7 +102,7 @@ def main():
     print("\n--- Resultado ---")
     for (x, y), label, color in zip(pts, labels, colors):
         free, val = is_free(x, y)
-        status = "LIBRE ✔️" if free else f"OCUPADO/INFLADO ❌ (valor={val})"
+        status = "LIBRE" if free else f"OCUPADO/INFLADO ❌ (valor={val})"
         print(f"{label}: x={x:.3f}, y={y:.3f}  ->  {status}")
         ax.plot(x, y, 'o', color=color, markersize=10)
 

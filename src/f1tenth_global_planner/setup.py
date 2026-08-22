@@ -27,6 +27,7 @@ setup(
     'console_scripts': [
         'global_planner_node = f1tenth_global_planner.global_planner_node:main',
         'path_smoother_node = f1tenth_global_planner.path_smoother_node:main',
+        'sim_tf_broadcaster_node = f1tenth_global_planner.sim_tf_broadcaster_node:main',
     ],
 },
 )

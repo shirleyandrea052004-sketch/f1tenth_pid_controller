@@ -34,10 +34,10 @@ def generate_launch_description():
         name='global_planner_node',
         output='screen',
         parameters=[{
-            'start_x': 0.496,
-            'start_y': -2.748,
-            'goal_x': 0.617,
-            'goal_y': -1.443,
+            'start_x': 0.792,
+            'start_y': 3.535,
+            'goal_x': 0.600,
+            'goal_y': 4.701,
             'robot_radius': 0.20,
             'use_rviz_goals': True,
         }]

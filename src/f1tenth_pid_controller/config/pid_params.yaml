@@ -1,0 +1,55 @@
+pid_controller_node:
+  ros__parameters:
+    # Fuente de la trayectoria: "csv" (recomendado) o "topic"
+    path_source: "csv"
+    path_csv: "/home/shirley/f1tenth_waypoints/smoothed_path.csv"
+    path_topic: "/smoothed_path"
+
+    map_frame: "map"
+    vehicle_frame: "f1tenth_1"
+
+    # Verifica estos nombres con `ros2 topic list` una vez lanzado el bridge de AutoDRIVE
+    steering_topic: "/autodrive/f1tenth_1/steering_command"
+    throttle_topic: "/autodrive/f1tenth_1/throttle_command"
+
+    control_frequency: 20.0
+
+    # PID de dirección (steering)
+    kp_steer: 0.85
+    ki_steer: 0.02
+    kd_steer: 0.15
+    heading_error_weight: 0.60
+
+    # Signos de depuración: cambia a -1.0 si el auto gira hacia el lado
+    # incorrecto (por ejemplo, se choca apenas arranca en modo autónomo).
+    cross_track_sign: 1.0
+    steering_sign: 1.0
+
+    # Logging de depuración en terminal (e_y, e_psi, steer_cmd, throttle, ...)
+    debug_logging: true
+    debug_period: 0.5
+
+    # PID de velocidad (throttle)
+    kp_speed: 0.60
+    ki_speed: 0.05
+    kd_speed: 0.05
+
+    # Límites
+    max_steering_angle_rad: 0.5236   # ~30 grados
+    max_throttle: 1.0
+    min_throttle: 0.0
+
+    # Perfil de velocidad de referencia
+    base_speed: 2.0
+    min_speed: 0.4
+    curvature_gain: 6.0
+    lookahead_curvature_pts: 8
+
+    # Contador de vueltas / cronómetro
+    lap_trigger_radius: 0.45
+    lap_exit_radius_factor: 4.0
+    min_lap_time: 8.0
+
+    # Protección anti-atasco
+    stall_speed_threshold: 0.05
+    stall_timeout: 2.0

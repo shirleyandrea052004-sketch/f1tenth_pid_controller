@@ -29,6 +29,7 @@ class SimTfBroadcasterNode(Node):
 
         self.last_position = None   # geometry_msgs/Point
         self.last_orientation = None  # geometry_msgs/Quaternion
+        self.last_data_stamp = None  # hora real del último dato de ips/imu recibido
 
         self.ips_sub = self.create_subscription(
             Point, '/autodrive/f1tenth_1/ips', self.ips_callback, 10)
@@ -44,16 +45,25 @@ class SimTfBroadcasterNode(Node):
 
     def ips_callback(self, msg: Point):
         self.last_position = msg
+        self.last_data_stamp = self.get_clock().now()
 
     def imu_callback(self, msg: Imu):
         self.last_orientation = msg.orientation
+        self.last_data_stamp = self.get_clock().now()
 
     def broadcast_tf(self):
         if self.last_position is None or self.last_orientation is None:
             return  # Todavía no llega suficiente info del simulador
 
         t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
+        # Se sella con la hora real del último dato de ips/imu recibido, NO
+        # con "ahora": si /ips deja de llegar (bridge/sim caído), este
+        # timer seguiría retransmitiendo la última pose cada 50ms con un
+        # timestamp fresco, haciendo parecer "viva" una posición en
+        # realidad congelada — con esto, cualquier consumidor (como el
+        # chequeo de antigüedad de TF en pid_controller_node) puede
+        # detectar la obsolescencia real de los datos.
+        t.header.stamp = self.last_data_stamp.to_msg()
         t.header.frame_id = self.map_frame
         t.child_frame_id = self.base_frame
 

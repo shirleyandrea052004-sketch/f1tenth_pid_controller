@@ -21,18 +21,24 @@ class GlobalPlannerNode(Node):
         self.declare_parameter('start_y', 0.0)
         self.declare_parameter('goal_x', 0.0)
         self.declare_parameter('goal_y', 5.0)
-        self.declare_parameter('robot_radius', 0.20)  # metros
+        self.declare_parameter('robot_radius', 0.30)  # metros
         self.declare_parameter('use_rviz_goals', True)
+        
+        # NUEVO: Parámetro para forzar a la ruta a centrarse
+        self.declare_parameter('centering_weight', 5.0) 
+        
         self.declare_parameter(
             'waypoints_csv_path',
             os.path.expanduser('~/f1tenth_waypoints/raw_path.csv'))
 
         self.robot_radius = self.get_parameter('robot_radius').value
         self.use_rviz_goals = self.get_parameter('use_rviz_goals').value
+        self.centering_weight = self.get_parameter('centering_weight').value
 
         self.map_data = None
         self.map_info = None
         self.inflated_grid = None
+        self.dist_map_cells = None  # Almacenará el mapa de distancias continuo
 
         self.start_world = (
             self.get_parameter('start_x').value,
@@ -67,7 +73,8 @@ class GlobalPlannerNode(Node):
 
         self.get_logger().info(
             f'GlobalPlannerNode listo. start(default)={self.start_world}, '
-            f'goal(default)={self.goal_world}, robot_radius={self.robot_radius}')
+            f'goal(default)={self.goal_world}, robot_radius={self.robot_radius}, '
+            f'centering_weight={self.centering_weight}')
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -94,8 +101,6 @@ class GlobalPlannerNode(Node):
             import matplotlib.pyplot as plt
 
             fig, ax = plt.subplots(figsize=(6, 16))
-            # OccupancyGrid: fila 0 = y mínima (origin), por eso origin='lower'
-            # es correcto aquí (a diferencia del PGM crudo).
             ax.imshow(self.inflated_grid, cmap='gray_r', origin='lower',
                       extent=[self.map_info.origin.position.x,
                               self.map_info.origin.position.x +
@@ -142,11 +147,13 @@ class GlobalPlannerNode(Node):
         """Infla obstáculos según el radio del robot usando distance transform."""
         occupied = (grid == 100) | (grid == -1)  # ocupado o desconocido = obstáculo
         free_mask = ~occupied
-        # Distancia (en celdas) desde cada celda libre a la celda ocupada más cercana
-        dist_from_obstacle = distance_transform_edt(free_mask)
+        
+        # Guardamos el mapa continuo de distancias como propiedad de la clase
+        self.dist_map_cells = distance_transform_edt(free_mask)
+        
         radius_cells = self.robot_radius / resolution
         inflated = grid.copy()
-        inflated[dist_from_obstacle <= radius_cells] = 100
+        inflated[self.dist_map_cells <= radius_cells] = 100
         return inflated
 
     # ------------------------------------------------------------------
@@ -208,11 +215,18 @@ class GlobalPlannerNode(Node):
             if (cx, cy) == (gx, gy):
                 break
 
-            for dx, dy, cost in neighbors:
+            for dx, dy, move_cost in neighbors:
                 nx, ny = cx + dx, cy + dy
+                
                 if not in_bounds(nx, ny) or not is_free(nx, ny):
                     continue
-                nd = d + cost
+                
+                # CÁLCULO DE COSTO MODIFICADO: Penalización por proximidad a obstáculos
+                dist_to_wall_cells = self.dist_map_cells[ny, nx]
+                penalty = self.centering_weight / (dist_to_wall_cells + 0.1)
+                
+                nd = d + move_cost + penalty
+                
                 if nd < dist.get((nx, ny), float('inf')):
                     dist[(nx, ny)] = nd
                     prev[(nx, ny)] = (cx, cy)

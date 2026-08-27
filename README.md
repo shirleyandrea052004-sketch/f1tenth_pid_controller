@@ -32,9 +32,7 @@ A continuación, se observa el funcionamiento de los algoritmos:
 **Trayectoria final (mapa + waypoints crudos y suavizados superpuestos):**
 ![Trayectoria final](docs/media/trajectory_overlay.png)
 
-> **Nota:** La visualización final del `Path` superpuesto sobre el vehículo en movimiento
-> (tanto en teleoperación como en modo autónomo con el PID) se puede apreciar a detalle en
-> los videos enlazados arriba.
+> **Nota:** Se cambiaron los puntos de start y goal con respecto a la primera parte con el objetivo de que coincida con el punto real de arranque.
 
 ## 📂 Estructura del repositorio
 

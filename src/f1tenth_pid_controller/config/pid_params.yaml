@@ -1,55 +1,136 @@
 pid_controller_node:
   ros__parameters:
-    # Fuente de la trayectoria: "csv" (recomendado) o "topic"
+    # ---------------- Fuente de la trayectoria ----------------
     path_source: "csv"
-    path_csv: "/home/shirley/f1tenth_waypoints/smoothed_path.csv"
+    # El launch sobrescribe este valor con <workspace>/waypoints/smoothed_path.csv.
+    # Solo se usa si se ejecuta el nodo suelto con `ros2 run`.
+    path_csv: "waypoints/smoothed_path.csv"
     path_topic: "/smoothed_path"
 
+    # ---------------- Frames y tópicos ----------------
     map_frame: "map"
     vehicle_frame: "f1tenth_1"
-
-    # Verifica estos nombres con `ros2 topic list` una vez lanzado el bridge de AutoDRIVE
     steering_topic: "/autodrive/f1tenth_1/steering_command"
     throttle_topic: "/autodrive/f1tenth_1/throttle_command"
 
-    control_frequency: 20.0
+    # ---------------- Lazo de control ----------------
+    # 10 Hz: /ips publica a ~1.4 Hz, así que 20 Hz sólo reprocesaba datos
+    # viejos y gastaba CPU que agravaba el lag del simulador.
+    control_frequency: 10.0
+    # Tolerancia de antigüedad del TF antes de cortar por seguridad.
+    max_tf_age_sec: 1.5
+    pose_fresh_window_sec: 0.05
 
-    # PID de dirección (steering)
-    kp_steer: 0.85
-    ki_steer: 0.02
-    kd_steer: 0.15
-    heading_error_weight: 0.60
+    # ---------------- Ley de dirección: Pure Pursuit ----------------
+    use_pure_pursuit: true
+    wheelbase_m: 0.33
+    # Subido de 0.7: con la pose llegando a ~1.4Hz, un lookahead corto
+    # hacia que el auto apuntara a un punto ya superado -> sobreviraje.
+    min_lookahead_m: 1.3
+    lookahead_speed_gain: 1.0
 
-    # Signos de depuración: cambia a -1.0 si el auto gira hacia el lado
-    # incorrecto (por ejemplo, se choca apenas arranca en modo autónomo).
-    cross_track_sign: 1.0
-    steering_sign: 1.0
+    # Compensacion de latencia: proyecta la pose hacia adelante (modelo de
+    # bicicleta) para controlar sobre donde el auto ESTA, no donde estuvo.
+    # Si alguna vez produce comportamiento erratico, poner en false.
+    latency_compensation: true
+    max_prediction_sec: 0.8
 
-    # Logging de depuración en terminal (e_y, e_psi, steer_cmd, throttle, ...)
-    debug_logging: true
-    debug_period: 0.5
+    # Poses guardadas para estimar velocidad.
+    speed_history_len: 8
+    # Ventana temporal del estimador de velocidad. v_est se calcula como
+    # desplazamiento/tiempo entre los extremos de esta ventana, no como
+    # dist/dt entre dos poses seguidas: con /ips irregular y ~2cm de ruido
+    # de posicion, el metodo anterior daba una banda de +-31% con el auto a
+    # velocidad constante, y ese ruido encendia y apagaba el throttle
+    # (avance a tirones). Con 1.5s la banda baja a +-14%.
+    # Subir a 2.0 si aun se ve ruidoso; bajar si reacciona muy lento.
+    speed_window_sec: 1.5
 
-    # PID de velocidad (throttle)
-    kp_speed: 0.60
-    ki_speed: 0.05
-    kd_speed: 0.05
-
-    # Límites
+    # ---------------- Cierre del circuito ----------------
+    # La ruta de Dijkstra termina en el goal, al otro lado de la pared
+    # virtual: quedaba un hueco de 1.31 m y un salto de rumbo de 52 grados
+    # donde el auto perdia el control. Con loop_path el nodo recorta la cola
+    # que se desvia hacia el goal e inserta un empalme suave, dejando la
+    # ruta como circuito continuo (indices circulares).
+    loop_path: true
+    # "straight": union directa goal->start. En la pista real no existe la
+    # pared virtual (solo se dibujo en la imagen del mapa para forzar a
+    # Dijkstra a rodear el circuito), la pista es ancha y el auto gira lo
+    # suficiente. Ademas permite recortar la cola que se curva hacia el goal,
+    # eliminando el kink de curvatura alta que dejaba el suavizador ahi.
+    # "hermite": spline con tangentes continuas, si el hueco fuera mayor.
+    loop_bridge_mode: "straight"
+    # Quiebre de rumbo maximo (rad) tolerado en las uniones del empalme.
+    # 0.44 rad = 25 grados. Sin este limite el algoritmo elegia un recorte
+    # con quiebre de 61 grados: la recta tiene curvatura interna 0, asi que
+    # la metrica anterior no veia el problema, y el auto zigzagueaba al
+    # entrar al empalme cerrando la vuelta.
+    loop_max_kink_rad: 0.44
+    loop_max_trim: 12
+    loop_curvature_margin: 0.8
     max_steering_angle_rad: 0.5236   # ~30 grados
-    max_throttle: 1.0
+    # Bajado de 3.0: limita el latigazo cuando vuelve la pose tras un corte.
+    max_steering_rate: 2.0
+    # Confirmado en pista: con -1.0 el lazo divergia monotonamente.
+    steering_sign: 1.0
+    cross_track_sign: 1.0
+
+    # Ganancias del PID de dirección (sólo se usan si use_pure_pursuit=false).
+    kp_steer: 0.85
+    ki_steer: 0.00
+    kd_steer: 0.15
+    k_cte: 0.8
+    k_cte_curve_gain: 0.0
+    heading_weight_speed_ref: 0.0
+    heading_weight_min: 0.3
+    speed_epsilon: 1.2
+
+    # ---------------- Perfil de velocidad ----------------
+    # Configuración conservadora para la Prueba 1 (10 vueltas sin colisión).
+    # Para la Prueba 2 (vuelta rápida) subir base_speed de a 0.2 m/s y
+    # verificar en el log que v_est siga a la velocidad real.
+    base_speed: 1.1
+    # Subido de 0.40: a esa velocidad el feedforward valia solo 0.064, tan
+    # bajo que cualquier correccion negativa del PID lo llevaba a 0.000 y el
+    # auto quedaba en punto muerto (probablemente ni vencia la friccion
+    # estatica). De ahi el ciclo de avanzar y detenerse. Con 0.70 el ff sube
+    # a 0.112 y queda margen para corregir sin cortar el empuje.
+    min_speed: 0.80
+    # Con 6.0 y las curvaturas reales del circuito (0.4-1.5 en casi todo el
+    # trazado) v_target daba 0.18-0.31 y SIEMPRE se saturaba contra
+    # min_speed: la vuelta entera corria al minimo (74 s, media 0.39 m/s).
+    # Con 3.0 la velocidad objetivo vuelve a variar de forma util entre
+    # rectas y curvas.
+    curvature_gain: 3.0
+    lookahead_curvature_pts: 10
+    speed_lookahead_m: 1.2
+
+    # ---------------- Throttle: feedforward + PID ----------------
+    # Cuanto throttle hace falta por cada m/s deseado. El 0.23 anterior
+    # salio de medir throttle=1.0 -> 4.3 m/s con el estimador roto, y estaba
+    # inflado: con telemetria limpia thr~0.22 sostiene ~1.4 m/s en recta
+    # (~0.157). Con 0.23 el auto iba ~50% pasado en las rectas y llegaba
+    # sobre-acelerado a la curva siguiente -> serpenteo.
+    throttle_feedforward_per_mps: 0.16
+    kp_speed: 0.25
+    ki_speed: 0.02
+    kd_speed: 0.02
+    # TECHO DE SEGURIDAD: aunque la estimación de velocidad falle, el auto
+    # no puede embalarse más allá de ~1.9 m/s.
+    max_throttle: 0.45
     min_throttle: 0.0
+    max_throttle_rate: 0.5
 
-    # Perfil de velocidad de referencia
-    base_speed: 2.0
-    min_speed: 0.4
-    curvature_gain: 6.0
-    lookahead_curvature_pts: 8
+    # ---------------- Anti-atasco / teletransporte ----------------
+    stall_speed_threshold: 0.05
+    stall_timeout: 3.0
+    max_plausible_speed: 6.0
 
-    # Contador de vueltas / cronómetro
+    # ---------------- Conteo de vueltas ----------------
     lap_trigger_radius: 0.45
     lap_exit_radius_factor: 4.0
     min_lap_time: 8.0
 
-    # Protección anti-atasco
-    stall_speed_threshold: 0.05
-    stall_timeout: 2.0
+    # ---------------- Debug ----------------
+    debug_logging: false
+    debug_period: 0.5

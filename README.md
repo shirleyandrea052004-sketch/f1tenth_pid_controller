@@ -19,7 +19,7 @@ simulador **AutoDRIVE** (F1TENTH) usando **ROS 2 (Humble)**. El sistema:
 
 📺 **[Movimiento del auto en AutoDRIVE sobre el mapa y trayectoria generada](https://www.youtube.com/watch?v=JdyhFhaaJMo)**
 
-📺 **[Control autónomo (PID) — 10 vueltas consecutivas sin colisión](PENDIENTE_ENLACE)**
+📺 **[Control autónomo (PID) — 10 vueltas consecutivas sin colisión](https://youtu.be/s5QKGuLzz3s)**
 > **Prueba 1 (estabilidad):** el video muestra al vehículo recorriendo el circuito de forma
 > autónoma durante 10 vueltas consecutivas sin colisionar, junto con la terminal donde se
 > imprime el contador de vueltas y el tiempo de cada vuelta.
@@ -31,9 +31,9 @@ simulador **AutoDRIVE** (F1TENTH) usando **ROS 2 (Humble)**. El sistema:
 
 | Prueba | Métrica | Resultado |
 |---|---|---|
-| 1 — Estabilidad | 10 vueltas consecutivas sin colisión | PENDIENTE: completar |
-| 1 — Estabilidad | Tiempo medio por vuelta | ~35–40 s (`base_speed = 1.1`) |
-| 2 — Vuelta rápida | Mejor vuelta | PENDIENTE: completar |
+| 1 — Estabilidad | 10 vueltas consecutivas sin colisión | 35.8 s |
+| 1 — Estabilidad | Tiempo medio por vuelta | ~35–37 s (`base_speed = 1.1`) |
+| 2 — Vuelta rápida | Mejor vuelta | 35.8 s |
 
 > Los tiempos se leen directamente de la terminal del controlador, que imprime una línea por
 > vuelta completada (ver [Opción C](#opción-c--demo-completa-con-conducción-autónoma-dijkstra--pchip--pid)).

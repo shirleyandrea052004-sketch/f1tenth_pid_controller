@@ -24,19 +24,50 @@ simulador **AutoDRIVE** (F1TENTH) usando **ROS 2 (Humble)**. El sistema:
 > autónoma durante 10 vueltas consecutivas sin colisionar, junto con la terminal donde se
 > imprime el contador de vueltas y el tiempo de cada vuelta.
 
-📺 **Vuelta más rápida (Prueba 2): pendiente de enlace.**
-> **Prueba 2 (velocidad):** intento de vuelta rápida con el perfil de velocidad más agresivo.
+📺 **[Vuelta más rápida (Prueba 2) — 16.801 s](https://youtu.be/83M86Cqro2E)**
+> **Prueba 2 (velocidad):** vuelta cronometrada con el perfil de velocidad agresivo.
 
 ### Resultados obtenidos
 
 | Prueba | Métrica | Resultado |
 |---|---|---|
-| 1 — Estabilidad | 10 vueltas consecutivas sin colisión | 35.8 s |
-| 1 — Estabilidad | Tiempo medio por vuelta | ~35–37 s (`base_speed = 1.1`) |
-| 2 — Vuelta rápida | Mejor vuelta | 35.8 s |
+| 1 — Estabilidad | 10 vueltas consecutivas sin colisión | ✅ Completadas |
+| 1 — Estabilidad | Tiempo por vuelta | ~35–37 s |
+| 2 — Vuelta rápida | **Mejor vuelta** | **16.801 s** |
 
-> Los tiempos se leen directamente de la terminal del controlador, que imprime una línea por
-> vuelta completada (ver [Opción C](#opción-c--demo-completa-con-conducción-autónoma-dijkstra--pchip--pid)).
+Los tiempos se leen directamente de la terminal del controlador, que imprime una línea por
+vuelta completada (ver [Opción C](#opción-c--demo-completa-con-conducción-autónoma-dijkstra--pchip--pid)).
+
+Cada prueba usa un **perfil de velocidad distinto**, ya que optimizan objetivos opuestos:
+
+| Parámetro | Prueba 1 (estabilidad) | Prueba 2 (vuelta rápida) |
+|---|---|---|
+| `base_speed` | `1.1` | `3.0` |
+| `min_speed` | `0.80` | `1.80` |
+| `curvature_gain` | `3.0` | `1.5` |
+| `min_lookahead_m` | `1.3` | `1.8` |
+| `max_prediction_sec` | `0.8` | `1.0` |
+| Velocidad media | ~0.81 m/s | ~1.73 m/s |
+| Resultado | 10 vueltas encadenadas sin colisión | 16.801 s (una vuelta) |
+
+El resto de parámetros es idéntico en ambos perfiles. El repositorio se entrega con el perfil
+de la Prueba 1 en `pid_params.yaml`; para reproducir la vuelta rápida, aplica los valores de la
+columna derecha (en caliente con `ros2 param set`, o editando el YAML y recompilando).
+
+> ⚠️ **El perfil de la Prueba 2 está afinado para una única vuelta lanzada, no para
+> resistencia.** El vehículo completa la vuelta cronometrada de forma limpia, pero al cruzar
+> la meta pierde el control y colisiona: a esa velocidad, el margen que queda para absorber un
+> salto en la llegada de la pose es menor que el error que ese salto introduce. Es un
+> compromiso deliberado — la Prueba 2 premia la vuelta más rápida, mientras que la
+> configuración conservadora de la Prueba 1 es la que sostiene las 10 vueltas encadenadas.
+> Ambos perfiles se documentan porque cada uno es la respuesta correcta a su prueba.
+
+> 📌 Nota sobre `base_speed = 3.0`: con `throttle_feedforward_per_mps = 0.16`, ese objetivo
+> pide un throttle de `0.48`, por encima del techo `max_throttle = 0.45`. En la práctica
+> satura, y la velocidad máxima real queda en `0.45 / 0.16 ≈ 2.81 m/s`. Es decir, el valor
+> `3.0` funciona como *"pide toda la velocidad que el techo de seguridad permita"*. Ese techo
+> se mantuvo a propósito: es la protección que impide que el vehículo se embale si la
+> estimación de velocidad vuelve a fallar (ver [Evolución del controlador](#-evolución-del-controlador-versión-final), cambio #1).
 
 A continuación, se observa el funcionamiento de los algoritmos:
 
@@ -626,6 +657,7 @@ motivó. Se documentan porque varios son **contraintuitivos** y conviene no reve
 | 16 | **Aviso explícito de TF ausente** | El nodo cargaba la ruta y no volvía a imprimir nada: parecía colgado cuando en realidad faltaba `sim_tf_broadcaster_node` |
 | 17 | Ruta de guardado de waypoints **resuelta automáticamente** | Los CSV se guardaban en `~/f1tenth_waypoints/`, fuera del repositorio, y la copia versionada quedaba desactualizada |
 | 18 | Salida de consola simplificada | La telemetría por ciclo saturaba la terminal durante la carrera |
+| 19 | `min_lookahead_m` **1.3 → 1.8** y `max_prediction_sec` **0.8 → 1.0** | Todo intento de subir la velocidad terminaba en colisión. Alargar el lookahead redujo la demanda de dirección **y** mejoró el tiempo a la vez; ese margen liberado fue lo que permitió más del doble de velocidad media en la vuelta rápida |
 
 **Progresión de resultados en pista:**
 
@@ -635,7 +667,9 @@ motivó. Se documentan porque varios son **contraintuitivos** y conviene no reve
 | Tras #1–#4 | Completa vueltas, pero con serpenteo y tirones |
 | Tras #5–#9 | Sin serpenteo; persistía el avance a tirones |
 | Tras #10–#11 | Sin tirones; ~40 s/vuelta a `base_speed = 1.0` |
-| Tras #12–#13 (final) | Vueltas consistentes a `base_speed = 1.1` |
+| Tras #12–#13 | Vueltas consistentes a `base_speed = 1.1` (~35–37 s) |
+| Tras #19 (Prueba 1) | **10 vueltas encadenadas sin colisión** |
+| Tras #19 (Prueba 2) | **Vuelta rápida en 16.801 s** |
 
 ## 🗺️ Waypoints generados
 
@@ -741,6 +775,19 @@ palanca principal:
 
 Debe ser **mayor que el desfase por latencia** (`v * age_típico`).
 
+> 💡 **El lookahead resultó ser la palanca decisiva para la vuelta rápida.** Es tentador
+> pensar que un lookahead corto rastrea la línea con más precisión y permite ir más rápido;
+> en este sistema ocurre lo contrario. Con retardo en la pose, un lookahead corto equivale a
+> ganancia alta, que es justo lo que desestabiliza un lazo con latencia. Pasar de `1.3` a
+> `1.8` bajó la demanda de dirección **y** mejoró el tiempo simultáneamente, y solo entonces
+> fue viable subir la velocidad: los intentos previos de acelerar sin tocar el lookahead
+> terminaban en colisión. Más allá de ~2.6 m el error vuelve a crecer, porque el vehículo
+> empieza a cortar las curvas.
+
+**3b. Sube la velocidad solo después de tener margen de dirección.** El orden importa: primero
+se busca la configuración que minimiza el esfuerzo de dirección a velocidad constante, y ese
+margen liberado es el que se "gasta" luego en velocidad.
+
 **4. Perfil de velocidad.** Sube `base_speed` de a pasos pequeños vigilando `e_y` en el log.
 Si `v_target` se queda clavado en `min_speed` casi toda la vuelta, `curvature_gain` está
 demasiado alto. Si el auto avanza a tirones, `min_speed` puede estar por debajo del umbral en
@@ -754,10 +801,23 @@ que el vehículo se mueve de forma estable.
 **La latencia de `/ips` es el factor que limita la velocidad máxima.** El bridge de AutoDRIVE
 se comunica con Unity por websocket, y la pose llega de forma irregular: la mayoría de las
 veces cada 0.0–0.2 s, pero con picos de hasta 0.8 s. Durante un pico el vehículo avanza a
-ciegas (~0.9 m a 1.1 m/s). Por encima de `base_speed ≈ 1.1` esa distancia deja de ser
-recuperable y el auto pierde el control. **No es un problema de CPU ni de ancho de pista**: la
-cadencia la marcan Unity y el websocket, no los núcleos disponibles. Se puede medir con
-`ros2 topic hz /autodrive/f1tenth_1/ips` (importa tanto la media como la dispersión).
+ciegas — casi 1.4 m a la velocidad de la Prueba 2. **No es un problema de CPU ni de ancho de
+pista**: la cadencia la marcan Unity y el websocket, no los núcleos disponibles. Se puede
+medir con `ros2 topic hz /autodrive/f1tenth_1/ips` (importa tanto la media como la dispersión).
+
+Lo que este proyecto muestra es que ese límite **no es fijo**: depende de cuánto margen de
+maniobra le quede al controlador cuando llega el salto. Con el lookahead corto original, la
+velocidad máxima estable era `base_speed ≈ 1.1`; con el lookahead largo y la compensación de
+latencia ajustada, el mismo hardware y el mismo simulador sostienen una vuelta a más del doble
+de velocidad media. El margen de dirección liberado es lo que se convierte en velocidad.
+
+**Sobre el uso de simulación para sintonizar.** Durante el desarrollo se usó un modelo
+cinemático de bicicleta para acotar el espacio de búsqueda antes de probar en pista. Fue útil
+para ordenar experimentos, pero sus predicciones absolutas deben tomarse con cautela: acertó
+el tiempo de una configuración con precisión de milésimas, y sin embargo fue **pesimista** en
+la configuración final (predijo ~19.5 s donde la pista dio 16.801 s), además de sobrestimar
+sistemáticamente el error lateral por un factor de ~3. Sirve para decidir *qué probar*, no
+para decidir *qué es correcto*: toda configuración documentada aquí está verificada en pista.
 
 **La ruta contiene un pico de curvatura cerca del `goal`.** El suavizador PCHIP fuerza el paso
 exacto por el `goal`, lo que deja una curvatura puntual muy alta (~3.7 1/m frente al límite
